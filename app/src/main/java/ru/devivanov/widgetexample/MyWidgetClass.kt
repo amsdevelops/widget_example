@@ -1,13 +1,9 @@
 package ru.devivanov.widgetexample
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.widget.RemoteViews
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,10 +11,6 @@ import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import ru.devivanov.widgetexample.remote.DoggyApi
-import java.io.IOException
-import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
 
 
 class MyWidgetClass : AppWidgetProvider() {
@@ -31,82 +23,38 @@ class MyWidgetClass : AppWidgetProvider() {
         retrofit.create(DoggyApi::class.java)
     }
     private val scope = CoroutineScope(Dispatchers.IO)
-
     override fun onUpdate(context: Context?, appWidgetManager: AppWidgetManager?, appWidgetIds: IntArray?) {
         //Итерируемся по списку виджетов
-        appWidgetIds?.forEach {
-            val pendingIntent = Intent(context, MyWidgetClass::class.java).let {
-                it.action = MY_WIDGET_ACTION
-                PendingIntent.getBroadcast(context, 0, it, 0)
-            }
-
-            //Создаем новый варинат верстки
-
-            RemoteViews(
-                    context?.packageName,
-                    R.layout.example_appwidget
-            ).apply {
-                setOnClickPendingIntent(R.id.image_button, pendingIntent)
-                //Запскаем корутину
-                scope.launch {
-                    //Получаем ссылку на картинку от Api
-                    val url = doggyApi.getRandomDog().message
-                    //Получаем битмап по ссылке
-                    val bitmap = getBitmapFromURL(url)
-                    //Устанавливаем новое изображение
-                    setImageViewBitmap(R.id.image_button, bitmap)
-                    //Обновляем виджет
-                    appWidgetManager?.updateAppWidget(it, this@apply)
-                }
-            }
-        }
-    }
-
-    override fun onReceive(context: Context?, intent: Intent?) {
-        super.onReceive(context, intent)
-        if (intent?.action != MY_WIDGET_ACTION) return
-        val appWidgetManager = AppWidgetManager.getInstance(context)
-        val appWidgetComponentName = ComponentName(context!!, MyWidgetClass::class.java)
-
-        RemoteViews(
-                context.packageName,
-                R.layout.example_appwidget
-        ).apply {
-            //Запскаем корутину
+        appWidgetIds?.forEach { id ->
             scope.launch {
-                //Получаем ссылку на картинку от Api
-                val url = doggyApi.getRandomDog().message
-                //Получаем битмап по ссылке
-                val bitmap = getBitmapFromURL(url)
-                //Устанавливаем новое изображение
-                setImageViewBitmap(R.id.image_button, bitmap)
-                //Обновляем виджет
-                appWidgetManager?.updateAppWidget(appWidgetComponentName, this@apply)
+                val urlList = arrayListOf<String>()
+                //Дважды получаем ссылку на картинку картинку и кладем в список
+                repeat(2) {
+                    urlList.add(doggyApi.getRandomDog().message)
+                }
+                //создаем адаптер
+                val adapter = Intent(context, WidgetItemService::class.java).apply {
+                    //Кладем id в экстраз
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                    //Кладем сам лист в экстраз
+                    putExtra(URL_LIST, urlList)
+                }
+                //Создаем RemoteView в котором прикрепляем адаптер к листу
+                val views = RemoteViews(
+                        context?.packageName,
+                        R.layout.example_appwidget
+                ).apply {
+                    setRemoteAdapter(R.id.list, adapter)
+                }
+                //Сначала обновляем виджет
+                appWidgetManager?.updateAppWidget(id, views)
+                //Потом обновляем адаптер
+                appWidgetManager?.notifyAppWidgetViewDataChanged(id, R.id.list)
             }
         }
     }
-
-    private fun getBitmapFromURL(src: String?): Bitmap? {
-        return try {
-            //Создаем URL из строки
-            val url = URL(src)
-            //Открываем соединение
-            val connection: HttpURLConnection = url.openConnection() as HttpURLConnection
-            //Говорим, что соедениен будет на прием данных
-            connection.doInput = true
-            //соединяемся
-            connection.connect()
-            //Создает поток данных
-            val input: InputStream = connection.inputStream
-            //Декодируем в битмап
-            BitmapFactory.decodeStream(input)
-        } catch (e: IOException) {
-            // Логируем исключение
-            null
-        }
-    }
-
+    //Ключ к списку с ссылками должен быть такой же как и в классе адаптера
     companion object {
-        private const val MY_WIDGET_ACTION = "MY_WIDGET_ACTION"
+        private const val URL_LIST = "URL_LIST"
     }
 }

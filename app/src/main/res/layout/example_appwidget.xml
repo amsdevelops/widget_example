@@ -3,12 +3,11 @@
     xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <ImageView
-        android:id="@+id/image_button"
+    <ListView
+        android:background="@color/white"
+        android:id="@+id/list"
+        android:layout_gravity="center"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:src="@drawable/ic_launcher_foreground"/>
-
-
-
+        android:layout_height="wrap_content">
+    </ListView>
 </FrameLayout>
